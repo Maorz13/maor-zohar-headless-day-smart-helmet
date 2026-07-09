@@ -1,16 +1,22 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown } from "lucide-react"
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Skeleton } from "@/components/ui/skeleton"
 import { RicosContent, ricosToPlainText } from "@/components/ricos-content"
 import { FAQ_COLLECTION_ID, wix } from "@/lib/wix"
-import { cn } from "@/lib/utils"
 
 type FaqItem = {
   _id: string
   question?: string
   answer?: unknown
+  order?: number
 }
 
 function FaqAnswer({ answer }: { answer: unknown }) {
@@ -27,15 +33,21 @@ function FaqAnswer({ answer }: { answer: unknown }) {
   return null
 }
 
-export function FaqSection() {
+export function FaqSection({
+  title = "Frequently asked questions",
+  subtitle = "Demo rides, fittings, and how the calibration map works.",
+}: {
+  title?: string
+  subtitle?: string
+}) {
   const [faqs, setFaqs] = React.useState<FaqItem[] | null>(null)
   const [error, setError] = React.useState(false)
-  const [open, setOpen] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
     wix.items
       .query(FAQ_COLLECTION_ID)
+      .ascending("order")
       .limit(50)
       .find()
       .then((res: { items: unknown[] }) => {
@@ -54,22 +66,17 @@ export function FaqSection() {
   if (error) return null
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl">
       <h2 className="text-center text-3xl font-semibold tracking-tight">
-        Frequently asked questions
+        {title}
       </h2>
-      <p className="mt-2 text-center text-muted-foreground">
-        Everything you need to know about going headless with us.
-      </p>
+      <p className="mt-2 text-center text-muted-foreground">{subtitle}</p>
 
       <div className="mt-8">
         {faqs === null ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-14 animate-pulse rounded-xl border border-border/60 bg-muted/40"
-              />
+              <Skeleton key={i} className="h-14 w-full rounded-2xl" />
             ))}
           </div>
         ) : faqs.length === 0 ? (
@@ -77,36 +84,20 @@ export function FaqSection() {
             No FAQs yet — check back soon.
           </p>
         ) : (
-          <div className="divide-y divide-border/60 rounded-xl border border-border/60">
-            {faqs.map((faq) => {
-              const isOpen = open === faq._id
-              return (
-                <div key={faq._id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpen(isOpen ? null : faq._id)}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left font-medium transition-colors hover:bg-muted/40"
-                    aria-expanded={isOpen}
-                  >
-                    <span>{faq.question}</span>
-                    <ChevronDown
-                      className={cn(
-                        "size-4 shrink-0 text-muted-foreground transition-transform",
-                        isOpen && "rotate-180"
-                      )}
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="px-5 pb-5 text-sm text-muted-foreground">
-                      <FaqAnswer answer={faq.answer} />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <Accordion>
+            {faqs.map((faq) => (
+              <AccordionItem key={faq._id} value={faq._id}>
+                <AccordionTrigger>{faq.question}</AccordionTrigger>
+                <AccordionContent>
+                  <div className="text-muted-foreground">
+                    <FaqAnswer answer={faq.answer} />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         )}
       </div>
-    </section>
+    </div>
   )
 }

@@ -25,8 +25,34 @@ export const WIX_BOOKINGS_APP_ID = "13d21c63-b5ec-5912-8397-c3a5ddb27a97"
 export const STAFF_MEMBER_RESOURCE_TYPE_ID =
   "1cd44cf8-756f-41c3-bd90-3e2ffcaf1155"
 
-/** CMS collection id for the FAQs collection (fields: question, answer). */
+/** CMS collection id for the FAQs collection (fields: question, answer, order). */
 export const FAQ_COLLECTION_ID = "FAQs"
+/** CMS collection id for the AR data layers (fields: name, shortDescription, batteryCostOrRefreshRate, availability, featuredNote, order). */
+export const DATA_LAYERS_COLLECTION_ID = "DataLayers"
+/** CMS collection id for testimonials (fields: quote, name, neighborhood, context, order). */
+export const TESTIMONIALS_COLLECTION_ID = "Testimonials"
+/** Slug of the free demo-ride booking service (the primary business action). */
+export const DEMO_RIDE_SERVICE_SLUG = "demo-ride-fitting"
+
+/** Business facts used across the footer, contact page, and JSON-LD. */
+export const BUSINESS = {
+  name: "HaloRide",
+  email: "hello@haloride.example",
+  phone: "+45 31 62 84 07",
+  street: "14 Cykelgade",
+  city: "Copenhagen 2200",
+  country: "Denmark",
+  hours: "Tuesday–Saturday, 10:00–18:00",
+  instagram: "https://instagram.example/haloride",
+  tiktok: "https://tiktok.example/@haloride",
+} as const
+
+/** Notify listeners (e.g. the header badge) that the cart changed. */
+export function emitCartUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("haloride:cart-updated"))
+  }
+}
 
 /**
  * The single shared Wix client. The clientId is the PUBLIC OAuth client id

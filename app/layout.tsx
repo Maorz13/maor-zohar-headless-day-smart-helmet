@@ -16,11 +16,11 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Headless Day",
-    template: "%s · Headless Day",
+    default: "HaloRide — AR smart bicycle helmet, Copenhagen",
+    template: "%s · HaloRide",
   },
   description:
-    "Headless Day — dev merch, a blog on headless architecture, and bookable consulting sessions.",
+    "HaloRide builds AR smart bicycle helmets with a built-in visor display and speakers. Three models, twelve live data layers, and a printed calibration map of your own field of view with every helmet. Book a free demo ride in Copenhagen.",
 }
 
 export default function RootLayout({
