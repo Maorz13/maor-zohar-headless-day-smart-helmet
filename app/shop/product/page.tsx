@@ -6,12 +6,25 @@ import { useSearchParams } from "next/navigation"
 import { currentCart } from "@wix/ecom"
 import { ArrowLeft, Loader2 } from "lucide-react"
 
+import { AddToCartButton } from "@/components/add-to-cart-button"
+import { HelmetVisual, MODEL_TAGLINES } from "@/components/helmets"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { formatPrice, imgSrc, wix, WIX_STORES_APP_ID } from "@/lib/wix"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { emitCartUpdated, formatPrice, wix, WIX_STORES_APP_ID } from "@/lib/wix"
 
 type Product = {
   _id?: string
   name?: string | null
+  slug?: string | null
   plainDescription?: string | null
   currency?: string | null
   actualPriceRange?: { minValue?: { amount?: string | null } | null } | null
@@ -25,6 +38,9 @@ type Product = {
 type Variant = {
   _id?: string
   variantId?: string
+  choices?: {
+    optionChoiceNames?: { optionName?: string; choiceName?: string } | null
+  }[]
   optionChoices?: {
     optionChoiceNames?: { optionName?: string; choiceName?: string } | null
   }[]
@@ -32,10 +48,12 @@ type Variant = {
 }
 
 function variantLabel(v: Variant): string {
-  const parts = (v.optionChoices ?? [])
+  const choices = v.choices ?? v.optionChoices ?? []
+  const parts = choices
     .map((c) => c.optionChoiceNames)
     .filter(Boolean)
-    .map((n) => `${n!.optionName}: ${n!.choiceName}`)
+    .map((n) => n!.choiceName)
+    .filter(Boolean)
   return parts.join(" · ")
 }
 
@@ -47,7 +65,9 @@ function ProductDetail() {
     undefined
   )
   const [variants, setVariants] = React.useState<Variant[]>([])
-  const [selectedVariant, setSelectedVariant] = React.useState(0)
+  const [selectedId, setSelectedId] = React.useState<string | undefined>(
+    undefined
+  )
   const [buying, setBuying] = React.useState(false)
   const [buyError, setBuyError] = React.useState<string | null>(null)
 
@@ -84,12 +104,16 @@ function ProductDetail() {
     }
   }, [id])
 
+  const chosen =
+    variants.find((v) => (v.variantId ?? v._id) === selectedId) ??
+    variants.find((v) => variantLabel(v).startsWith("M")) ??
+    variants[0]
+
   const buyNow = async () => {
     if (!product?._id) return
     setBuying(true)
     setBuyError(null)
     try {
-      const chosen = variants[selectedVariant] ?? variants[0]
       const variantId = chosen ? (chosen.variantId ?? chosen._id) : undefined
       await wix.currentCart.addToCurrentCart({
         lineItems: [
@@ -103,21 +127,23 @@ function ProductDetail() {
           },
         ],
       })
+      emitCartUpdated()
       const checkout = await wix.currentCart.createCheckoutFromCurrentCart({
         channelType: currentCart.ChannelType.WEB,
       })
       const origin = window.location.origin
       const session = await wix.redirects.createRedirectSession({
         ecomCheckout: { checkoutId: checkout.checkoutId },
-        callbacks: { postFlowUrl: `${origin}/shop`, thankYouPageUrl: `${origin}/shop` },
+        callbacks: {
+          postFlowUrl: `${origin}/cart`,
+          thankYouPageUrl: `${origin}/`,
+        },
       })
       const url = session.redirectSession?.fullUrl
       if (!url) throw new Error("no redirect url")
       window.location.href = url
     } catch {
-      setBuyError(
-        "Couldn't start checkout. Please try again in a moment."
-      )
+      setBuyError("Couldn't start checkout. Please try again in a moment.")
       setBuying(false)
     }
   }
@@ -125,11 +151,11 @@ function ProductDetail() {
   if (product === undefined) {
     return (
       <div className="grid gap-10 md:grid-cols-2">
-        <div className="aspect-square animate-pulse rounded-xl bg-muted/50" />
+        <Skeleton className="aspect-[4/3] w-full rounded-xl" />
         <div className="space-y-4">
-          <div className="h-8 w-2/3 animate-pulse rounded bg-muted/50" />
-          <div className="h-5 w-1/4 animate-pulse rounded bg-muted/50" />
-          <div className="h-24 w-full animate-pulse rounded bg-muted/50" />
+          <Skeleton className="h-8 w-2/3" />
+          <Skeleton className="h-5 w-1/4" />
+          <Skeleton className="h-24 w-full" />
         </div>
       </div>
     )
@@ -137,14 +163,14 @@ function ProductDetail() {
 
   if (product === null) {
     return (
-      <div className="flex flex-col items-center rounded-xl border border-dashed border-border px-6 py-16 text-center">
-        <h1 className="font-medium">Product not found</h1>
+      <div className="flex flex-col items-center rounded-xl border border-dashed px-6 py-16 text-center">
+        <h1 className="font-medium">Helmet not found</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          This product may still be on its way to the shelves.
+          This model may have moved — the full lineup is in the shop.
         </p>
         <Button className="mt-6" variant="outline" render={<Link href="/shop" />}>
           <ArrowLeft data-icon="inline-start" />
-          Back to shop
+          Back to the shop
         </Button>
       </div>
     )
@@ -159,33 +185,28 @@ function ProductDetail() {
     product.currency
   )
   const inStock = product.inventory?.availabilityStatus !== "OUT_OF_STOCK"
-  const imageSrc = imgSrc(product.media?.main, 1000, 1000)
+  const tagline = MODEL_TAGLINES[product.slug ?? ""]
 
   return (
     <div className="grid gap-10 md:grid-cols-2">
-      {imageSrc ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageSrc}
-          alt={product.name ?? ""}
-          className="aspect-square w-full rounded-xl object-cover"
-        />
-      ) : (
-        <div className="flex aspect-square w-full items-center justify-center rounded-xl bg-gradient-to-br from-muted to-muted/40">
-          <span className="font-mono text-6xl font-semibold text-muted-foreground/50">
-            {(product.name ?? "?").slice(0, 2).toUpperCase()}
-          </span>
-        </div>
-      )}
+      <HelmetVisual
+        helmet={product}
+        className="aspect-[4/3] w-full rounded-xl object-cover"
+      />
 
       <div className="flex flex-col">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        {tagline ? (
+          <Badge variant="secondary" className="self-start">
+            {tagline}
+          </Badge>
+        ) : null}
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
           {product.name}
         </h1>
         <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-mono text-xl">{price}</span>
+          <span className="text-xl font-semibold tabular-nums">{price}</span>
           {compareAt && compareAt !== price ? (
-            <span className="font-mono text-sm text-muted-foreground line-through">
+            <span className="text-sm text-muted-foreground line-through">
               {compareAt}
             </span>
           ) : null}
@@ -197,35 +218,44 @@ function ProductDetail() {
         ) : null}
 
         {variants.length > 1 ? (
-          <div className="mt-6">
-            <label
-              htmlFor="variant"
-              className="text-sm font-medium text-foreground"
+          <div className="mt-6 max-w-xs">
+            <Label htmlFor="size">Size</Label>
+            <Select
+              value={selectedId ?? (chosen?.variantId ?? chosen?._id)}
+              onValueChange={(v) => setSelectedId(v ?? undefined)}
             >
-              Options
-            </label>
-            <select
-              id="variant"
-              value={selectedVariant}
-              onChange={(e) => setSelectedVariant(Number(e.target.value))}
-              className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            >
-              {variants.map((v, i) => (
-                <option key={v.variantId ?? v._id ?? i} value={i}>
-                  {variantLabel(v) || `Option ${i + 1}`}
-                  {v.inventoryStatus?.inStock === false
-                    ? " (out of stock)"
-                    : ""}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="size" className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {variants.map((v, i) => (
+                  <SelectItem
+                    key={v.variantId ?? v._id ?? i}
+                    value={v.variantId ?? v._id ?? ""}
+                  >
+                    {variantLabel(v) || `Option ${i + 1}`}
+                    {v.inventoryStatus?.inStock === false
+                      ? " (out of stock)"
+                      : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
 
-        <div className="mt-8">
+        <div className="mt-8 flex max-w-md flex-col gap-2 sm:flex-row">
+          {product._id && inStock ? (
+            <AddToCartButton
+              productId={product._id}
+              variantId={chosen?.variantId ?? chosen?._id}
+              className="flex-1"
+            />
+          ) : null}
           <Button
-            size="lg"
-            className="w-full sm:w-auto"
+            size="default"
+            variant={inStock ? "outline" : "default"}
+            className="flex-1"
             disabled={buying || !inStock}
             onClick={buyNow}
           >
@@ -240,13 +270,14 @@ function ProductDetail() {
               "Out of stock"
             )}
           </Button>
-          {buyError ? (
-            <p className="mt-3 text-sm text-destructive">{buyError}</p>
-          ) : null}
-          <p className="mt-3 text-xs text-muted-foreground">
-            You&apos;ll complete your purchase on our secure Wix checkout.
-          </p>
         </div>
+        {buyError ? (
+          <p className="mt-3 text-sm text-destructive">{buyError}</p>
+        ) : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Secure checkout via Wix. Every helmet includes the fitting and your
+          printed calibration map.
+        </p>
       </div>
     </div>
   )
@@ -260,13 +291,11 @@ export default function ProductPage() {
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
-        Back to shop
+        Back to the shop
       </Link>
       <div className="mt-8">
         <React.Suspense
-          fallback={
-            <div className="aspect-square max-w-md animate-pulse rounded-xl bg-muted/50" />
-          }
+          fallback={<Skeleton className="aspect-[4/3] max-w-md rounded-xl" />}
         >
           <ProductDetail />
         </React.Suspense>

@@ -1,146 +1,195 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
-import { PackageOpen, ShoppingBag } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 
-import { formatPrice, imgSrc, wix } from "@/lib/wix"
+import { HelmetsGrid, useHelmets } from "@/components/helmets"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
+import { formatPrice } from "@/lib/wix"
 
-type Product = {
-  _id?: string
-  name?: string | null
-  plainDescription?: string | null
-  currency?: string | null
-  actualPriceRange?: { minValue?: { amount?: string | null } | null } | null
-  media?: { main?: unknown } | null
-}
+/**
+ * Spec sheet per model, keyed by product slug. Specs are presentation copy;
+ * names and prices always come live from Wix Stores.
+ */
+const SPECS: { label: string; bySlug: Record<string, string> }[] = [
+  {
+    label: "Visor display",
+    bySlug: {
+      "haloride-city": "Core display",
+      "haloride-one": "Full display",
+      "haloride-pro": "Wide-angle display",
+    },
+  },
+  {
+    label: "Battery",
+    bySlug: {
+      "haloride-city": "6 hours",
+      "haloride-one": "8 hours",
+      "haloride-pro": "12 hours",
+    },
+  },
+  {
+    label: "Weight",
+    bySlug: {
+      "haloride-city": "380 g",
+      "haloride-one": "440 g",
+      "haloride-pro": "460 g",
+    },
+  },
+  {
+    label: "Speakers",
+    bySlug: {
+      "haloride-city": "Open-ear",
+      "haloride-one": "Open-ear + mic",
+      "haloride-pro": "Open-ear + dual mic",
+    },
+  },
+  {
+    label: "Data layers",
+    bySlug: {
+      "haloride-city": "Core (speed, nav, hazards)",
+      "haloride-one": "All commuter layers",
+      "haloride-pro": "Every layer incl. radar + rear cam",
+    },
+  },
+  {
+    label: "Sensor suite",
+    bySlug: {
+      "haloride-city": "—",
+      "haloride-one": "Light + motion",
+      "haloride-pro": "Radar + rear camera + power",
+    },
+  },
+  {
+    label: "In the box",
+    bySlug: {
+      "haloride-city": "Helmet + calibration map",
+      "haloride-one": "Helmet + calibration map",
+      "haloride-pro": "Helmet + map + second visor",
+    },
+  },
+]
 
-function ProductImage({ product }: { product: Product }) {
-  const src = imgSrc(product.media?.main, 800, 800)
-  if (src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt={product.name ?? ""}
-        className="aspect-square w-full rounded-lg object-cover"
-      />
-    )
+function ComparisonTable() {
+  const { helmets, error } = useHelmets()
+
+  if (error) return null
+  if (helmets === null) {
+    return <Skeleton className="h-96 w-full rounded-xl" />
   }
+
   return (
-    <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-gradient-to-br from-muted to-muted/40">
-      <span className="font-mono text-3xl font-semibold text-muted-foreground/60">
-        {(product.name ?? "?").slice(0, 2).toUpperCase()}
-      </span>
+    <div className="overflow-x-auto rounded-xl border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-40" />
+            {helmets.map(({ product }) => (
+              <TableHead key={product._id} className="min-w-44">
+                <Link
+                  href={`/shop/product?id=${encodeURIComponent(product._id ?? "")}`}
+                  className="font-semibold text-foreground hover:underline hover:underline-offset-4"
+                >
+                  {product.name}
+                </Link>
+                <p className="font-normal text-muted-foreground tabular-nums">
+                  {formatPrice(
+                    product.actualPriceRange?.minValue?.amount,
+                    product.currency
+                  )}
+                </p>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {SPECS.map((row) => (
+            <TableRow key={row.label}>
+              <TableCell className="font-medium">{row.label}</TableCell>
+              {helmets.map(({ product }) => (
+                <TableCell
+                  key={product._id}
+                  className="text-muted-foreground"
+                >
+                  {row.bySlug[product.slug ?? ""] ?? "—"}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+          <TableRow>
+            <TableCell />
+            {helmets.map(({ product }) => (
+              <TableCell key={product._id}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  render={
+                    <Link
+                      href={`/shop/product?id=${encodeURIComponent(product._id ?? "")}`}
+                    />
+                  }
+                >
+                  View details
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
 export default function ShopPage() {
-  const [products, setProducts] = React.useState<Product[] | null>(null)
-  const [error, setError] = React.useState(false)
-
-  React.useEffect(() => {
-    let cancelled = false
-    wix.productsV3
-      .queryProducts()
-      .limit(50)
-      .find()
-      .then((res) => {
-        if (!cancelled) setProducts(res.items as Product[])
-      })
-      .catch(() => {
-        if (!cancelled) setError(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <div className="max-w-2xl">
-        <p className="font-mono text-sm text-primary">/shop</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Dev merch, shipped
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Three models. Pick your ride.
         </h1>
         <p className="mt-3 text-muted-foreground">
-          Gear for the terminally online. Every product below is fetched live
-          from Wix Stores.
+          City for the everyday, One for every commute, Pro for the long road.
+          Whichever you choose, it ships with your printed calibration map —
+          and every purchase includes the fitting.
         </p>
       </div>
 
       <div className="mt-10">
-        {error ? (
-          <EmptyState
-            icon={PackageOpen}
-            title="Couldn't load the shop"
-            body="Something went wrong fetching products. Please try again in a moment."
-          />
-        ) : products === null ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="space-y-3">
-                <div className="aspect-square animate-pulse rounded-lg bg-muted/50" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted/50" />
-                <div className="h-4 w-1/4 animate-pulse rounded bg-muted/50" />
-              </div>
-            ))}
-          </div>
-        ) : products.length === 0 ? (
-          <EmptyState
-            icon={ShoppingBag}
-            title="The shelves are being stocked"
-            body="No products yet — new merch is on its way. Check back soon."
-          />
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p) => (
-              <Link
-                key={p._id}
-                href={`/shop/product?id=${encodeURIComponent(p._id ?? "")}`}
-                className="group rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border hover:bg-muted/30"
-              >
-                <ProductImage product={p} />
-                <div className="mt-4 flex items-start justify-between gap-2">
-                  <h2 className="font-medium group-hover:underline group-hover:underline-offset-4">
-                    {p.name}
-                  </h2>
-                  <span className="shrink-0 font-mono text-sm text-muted-foreground">
-                    {formatPrice(
-                      p.actualPriceRange?.minValue?.amount,
-                      p.currency
-                    )}
-                  </span>
-                </div>
-                {p.plainDescription ? (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {p.plainDescription}
-                  </p>
-                ) : null}
-              </Link>
-            ))}
-          </div>
-        )}
+        <HelmetsGrid />
       </div>
-    </div>
-  )
-}
 
-function EmptyState({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  body: string
-}) {
-  return (
-    <div className="flex flex-col items-center rounded-xl border border-dashed border-border px-6 py-16 text-center">
-      <Icon className="size-8 text-muted-foreground/60" />
-      <h2 className="mt-4 font-medium">{title}</h2>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{body}</p>
+      <div className="mt-16">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Compare the lineup
+        </h2>
+        <p className="mt-2 text-muted-foreground">
+          Same calibration, different reach.
+        </p>
+        <div className="mt-6">
+          <ComparisonTable />
+        </div>
+      </div>
+
+      <p className="mt-8 text-sm text-muted-foreground">
+        Not sure which fits?{" "}
+        <Link
+          href="/contact"
+          className="font-medium text-foreground underline underline-offset-4"
+        >
+          Book a free demo ride
+        </Link>{" "}
+        and try all three at the studio.
+      </p>
     </div>
   )
 }
