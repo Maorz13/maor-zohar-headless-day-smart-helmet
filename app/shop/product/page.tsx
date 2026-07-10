@@ -8,7 +8,6 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { HelmetVisual, MODEL_TAGLINES } from "@/components/helmets"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -19,7 +18,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { emitCartUpdated, formatPrice, wix, WIX_STORES_APP_ID } from "@/lib/wix"
+import {
+  emitCartUpdated,
+  formatPrice,
+  markStoredCart,
+  WIX_STORES_APP_ID,
+} from "@/lib/wix"
+import { wixCart } from "@/lib/wix-cart"
+import { wixStore } from "@/lib/wix-store"
 
 type Product = {
   _id?: string
@@ -79,14 +85,14 @@ function ProductDetail() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await wix.productsV3.queryProducts().limit(100).find()
+        const res = await wixStore.productsV3.queryProducts().limit(100).find()
         const found =
           (res.items as Product[]).find((p) => p._id === id) ?? null
         if (cancelled) return
         setProduct(found)
         if (found?._id) {
           try {
-            const vres = await wix.readOnlyVariantsV3
+            const vres = await wixStore.readOnlyVariantsV3
               .queryVariants()
               .eq("productData.productId", found._id)
               .find()
@@ -115,7 +121,7 @@ function ProductDetail() {
     setBuyError(null)
     try {
       const variantId = chosen ? (chosen.variantId ?? chosen._id) : undefined
-      await wix.currentCart.addToCurrentCart({
+      await wixCart.currentCart.addToCurrentCart({
         lineItems: [
           {
             quantity: 1,
@@ -127,12 +133,13 @@ function ProductDetail() {
           },
         ],
       })
+      markStoredCart()
       emitCartUpdated()
-      const checkout = await wix.currentCart.createCheckoutFromCurrentCart({
+      const checkout = await wixCart.currentCart.createCheckoutFromCurrentCart({
         channelType: currentCart.ChannelType.WEB,
       })
       const origin = window.location.origin
-      const session = await wix.redirects.createRedirectSession({
+      const session = await wixCart.redirects.createRedirectSession({
         ecomCheckout: { checkoutId: checkout.checkoutId },
         callbacks: {
           postFlowUrl: `${origin}/cart`,
@@ -195,14 +202,12 @@ function ProductDetail() {
       />
 
       <div className="flex flex-col">
-        {tagline ? (
-          <Badge variant="secondary" className="self-start">
-            {tagline}
-          </Badge>
-        ) : null}
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+        <h1 className="text-3xl font-semibold tracking-tight">
           {product.name}
         </h1>
+        {tagline ? (
+          <p className="mt-2 text-sm text-muted-foreground">{tagline}</p>
+        ) : null}
         <div className="mt-3 flex items-baseline gap-2">
           <span className="text-xl font-semibold tabular-nums">{price}</span>
           {compareAt && compareAt !== price ? (

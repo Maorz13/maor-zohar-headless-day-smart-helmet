@@ -14,7 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { wix } from "@/lib/wix"
+import { hasStoredCart } from "@/lib/wix"
 import { cn } from "@/lib/utils"
 
 const links = [
@@ -31,8 +31,15 @@ function useCartCount() {
   React.useEffect(() => {
     let cancelled = false
     const refresh = () => {
-      wix.currentCart
-        .getCurrentCart()
+      // Fresh visitors have no cart: `carts/current` would 404 (a console
+      // error on every page) — skip the network call AND the ecom SDK chunk
+      // until the first successful add-to-cart sets the flag.
+      if (!hasStoredCart()) {
+        setCount(0)
+        return
+      }
+      import("@/lib/wix-cart")
+        .then(({ getCurrentCartSafe }) => getCurrentCartSafe())
         .then((cart) => {
           if (cancelled) return
           const total = (cart?.lineItems ?? []).reduce(

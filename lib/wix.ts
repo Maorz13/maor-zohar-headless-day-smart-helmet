@@ -1,21 +1,16 @@
-import { createClient, OAuthStrategy, media } from "@wix/sdk"
-import { productsV3, readOnlyVariantsV3 } from "@wix/stores"
-import { currentCart } from "@wix/ecom"
-import { redirects } from "@wix/redirects"
-import { posts } from "@wix/blog"
-import {
-  services,
-  availabilityTimeSlots,
-  eventTimeSlots,
-  bookings,
-} from "@wix/bookings"
-import { items } from "@wix/data"
-import { forms } from "@wix/forms"
-import {
-  createCart,
-  calculateCart,
-  placeOrder,
-} from "@wix/auto_sdk_ecom_cart-v-2"
+import { getScaledToFillImageUrl } from "@wix/sdk/media"
+
+/**
+ * Shared Wix constants + pure helpers. This module deliberately imports NO
+ * Wix SDK API modules so that pages which only need constants (footer,
+ * static pages) don't pull the SDK into their bundle. The actual clients
+ * live in lib/wix-store.ts, lib/wix-cart.ts, lib/wix-bookings.ts and
+ * lib/wix-data.ts — one per capability, so each route bundles only the SDK
+ * surface it uses.
+ */
+
+/** The PUBLIC visitor OAuth client id (not a secret). */
+export const WIX_CLIENT_ID = "df5c40c1-a8f1-445e-bc50-c7704b2ce241"
 
 /** Wix Stores app id — the cart's catalogReference.appId for products. */
 export const WIX_STORES_APP_ID = "215238eb-22a5-4c36-9e7b-e7c08025e04e"
@@ -55,31 +50,30 @@ export function emitCartUpdated() {
 }
 
 /**
- * The single shared Wix client. The clientId is the PUBLIC OAuth client id
- * (not a secret) — all data fetching happens client-side as an anonymous
- * visitor.
+ * localStorage flag marking that this visitor has (or had) a Wix cart.
+ * Until the flag is set we never call `carts/current` — for a fresh visitor
+ * that endpoint 404s, which shows up as a console error on every page.
  */
-export const wix = createClient({
-  modules: {
-    productsV3,
-    readOnlyVariantsV3,
-    currentCart,
-    redirects,
-    posts,
-    services,
-    availabilityTimeSlots,
-    eventTimeSlots,
-    bookings,
-    items,
-    forms,
-    createCart,
-    calculateCart,
-    placeOrder,
-  },
-  auth: OAuthStrategy({
-    clientId: "df5c40c1-a8f1-445e-bc50-c7704b2ce241",
-  }),
-})
+const HAS_CART_KEY = "haloride:has-cart"
+
+/** True when a previous add-to-cart succeeded for this visitor. */
+export function hasStoredCart(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return window.localStorage.getItem(HAS_CART_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+/** Remember that this visitor now has a cart (first add-to-cart succeeded). */
+export function markStoredCart() {
+  try {
+    window.localStorage.setItem(HAS_CART_KEY, "1")
+  } catch {
+    // localStorage unavailable (private mode) — worst case we skip the badge.
+  }
+}
 
 /**
  * Resolve any Wix media value into an https URL for <img src>.
@@ -92,7 +86,7 @@ export function imgSrc(mediaVal: unknown, w = 600, h = 600): string {
     (typeof m === "object" && m !== null ? (m.image ?? m.url) : undefined) ?? m
   if (!v) return ""
   if (typeof v === "string" && v.startsWith("wix:image://")) {
-    return media.getScaledToFillImageUrl(v, w, h, {})
+    return getScaledToFillImageUrl(v, w, h, {})
   }
   if (typeof v === "string") {
     return v.startsWith("http") ? v : ""

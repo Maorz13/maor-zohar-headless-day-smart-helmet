@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 import {
   formatPrice,
   STAFF_MEMBER_RESOURCE_TYPE_ID,
-  wix,
   WIX_BOOKINGS_APP_ID,
 } from "@/lib/wix"
+import { wixBookings } from "@/lib/wix-bookings"
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -103,7 +103,7 @@ export function BookingFlow({ service }: { service: any }) {
       try {
         let timeSlots: Slot[] = []
         if (isClass) {
-          const res = await wix.eventTimeSlots.listEventTimeSlots({
+          const res = await wixBookings.eventTimeSlots.listEventTimeSlots({
             serviceIds: [service._id],
             fromLocalDate,
             toLocalDate,
@@ -112,7 +112,7 @@ export function BookingFlow({ service }: { service: any }) {
           } as any)
           timeSlots = (res.timeSlots ?? []) as Slot[]
         } else {
-          const res = await wix.availabilityTimeSlots.listAvailabilityTimeSlots(
+          const res = await wixBookings.availabilityTimeSlots.listAvailabilityTimeSlots(
             {
               serviceId: service._id,
               fromLocalDate,
@@ -133,7 +133,7 @@ export function BookingFlow({ service }: { service: any }) {
       try {
         const formId = service?.form?._id
         if (formId) {
-          const { formSummary } = await wix.forms.getFormSummary(formId)
+          const { formSummary } = await wixBookings.forms.getFormSummary(formId)
           const parsed = ((formSummary?.fields ?? []) as any[])
             .filter((f) => !f.deleted)
             .filter((f) => f.type && SIMPLE_TYPES.includes(f.type))
@@ -201,7 +201,7 @@ export function BookingFlow({ service }: { service: any }) {
         ]
       }
 
-      const created = await wix.bookings.createBooking(
+      const created = await wixBookings.bookings.createBooking(
         {
           selectedPaymentOption,
           totalParticipants: 1,
@@ -213,7 +213,7 @@ export function BookingFlow({ service }: { service: any }) {
       if (!bookingId) throw new Error("booking failed")
 
       // The ecom Cart V2 holds the seat.
-      const cart = await wix.createCart({
+      const cart = await wixBookings.createCart({
         catalogItems: [
           {
             quantity: 1,
@@ -228,7 +228,7 @@ export function BookingFlow({ service }: { service: any }) {
       const cartId = (cart as any)?._id
       if (!cartId) throw new Error("cart creation failed")
 
-      const { summary } = await wix.calculateCart(cartId)
+      const { summary } = await wixBookings.calculateCart(cartId)
       const total = Number(
         (summary as any)?.priceSummary?.total?.amount ?? "0"
       )
@@ -241,9 +241,9 @@ export function BookingFlow({ service }: { service: any }) {
           : selectedPaymentOption !== "OFFLINE"
 
       if (checkoutRequired) {
-        const { redirectSession } = await wix.redirects.createRedirectSession({
+        const { redirectSession } = await wixBookings.redirects.createRedirectSession({
           ecomCheckout: { checkoutId: cartId },
-          callbacks: { postFlowUrl: `${window.location.origin}/bookings` },
+          callbacks: { postFlowUrl: `${window.location.origin}/contact` },
         })
         const url = redirectSession?.fullUrl
         if (!url) throw new Error("no redirect url")
@@ -251,7 +251,7 @@ export function BookingFlow({ service }: { service: any }) {
         return
       }
 
-      await wix.placeOrder(cartId)
+      await wixBookings.placeOrder(cartId)
       setConfirmed(true)
     } catch {
       setBookError(

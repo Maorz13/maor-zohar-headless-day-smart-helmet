@@ -4,7 +4,7 @@ import * as React from "react"
 import { Check, Loader2, ShoppingCart } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { emitCartUpdated, wix, WIX_STORES_APP_ID } from "@/lib/wix"
+import { emitCartUpdated, markStoredCart, WIX_STORES_APP_ID } from "@/lib/wix"
 
 /**
  * Adds a product (optionally a specific variant) to the current Wix cart and
@@ -32,7 +32,10 @@ export function AddToCartButton({
     setState("adding")
     setError(false)
     try {
-      await wix.currentCart.addToCurrentCart({
+      // Loaded on demand so pages don't bundle the ecom SDK until the
+      // visitor actually adds something to the cart.
+      const { wixCart } = await import("@/lib/wix-cart")
+      await wixCart.currentCart.addToCurrentCart({
         lineItems: [
           {
             quantity: 1,
@@ -44,6 +47,7 @@ export function AddToCartButton({
           },
         ],
       })
+      markStoredCart()
       emitCartUpdated()
       setState("added")
       window.setTimeout(() => setState("idle"), 2000)

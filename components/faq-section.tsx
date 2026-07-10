@@ -10,9 +10,10 @@ import {
 } from "@/components/ui/accordion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RicosContent, ricosToPlainText } from "@/components/ricos-content"
-import { FAQ_COLLECTION_ID, wix } from "@/lib/wix"
+import { FAQ_COLLECTION_ID } from "@/lib/wix"
+import { fetchCollectionItems } from "@/lib/wix-data"
 
-type FaqItem = {
+export type FaqItem = {
   _id: string
   question?: string
   answer?: unknown
@@ -36,29 +37,32 @@ function FaqAnswer({ answer }: { answer: unknown }) {
 export function FaqSection({
   title = "Frequently asked questions",
   subtitle = "Demo rides, fittings, and how the calibration map works.",
+  initialFaqs,
 }: {
   title?: string
   subtitle?: string
+  initialFaqs?: FaqItem[]
 }) {
-  const [faqs, setFaqs] = React.useState<FaqItem[] | null>(null)
+  const hadInitial = !!initialFaqs?.length
+  const [faqs, setFaqs] = React.useState<FaqItem[] | null>(
+    hadInitial ? (initialFaqs as FaqItem[]) : null
+  )
   const [error, setError] = React.useState(false)
 
   React.useEffect(() => {
     let cancelled = false
-    wix.items
-      .query(FAQ_COLLECTION_ID)
-      .ascending("order")
-      .limit(50)
-      .find()
-      .then((res: { items: unknown[] }) => {
-        if (!cancelled) setFaqs(res.items as unknown as FaqItem[])
+    fetchCollectionItems<FaqItem>(FAQ_COLLECTION_ID)
+      .then((items) => {
+        if (!cancelled) setFaqs(items)
       })
       .catch(() => {
-        if (!cancelled) setError(true)
+        // Keep the baked data if we have it; only surface an error without it.
+        if (!cancelled && !hadInitial) setError(true)
       })
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Fail quietly — the FAQ section simply doesn't render if the

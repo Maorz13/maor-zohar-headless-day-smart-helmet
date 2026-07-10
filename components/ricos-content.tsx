@@ -92,15 +92,14 @@ function Node({ node }: { node: RicosNode }) {
       )
     case "HEADING": {
       const level = Math.min(Math.max(node.headingData?.level ?? 2, 1), 6)
-      const Tag = `h${level}` as keyof React.JSX.IntrinsicElements
       const cls =
         level <= 2
           ? "mt-8 text-2xl font-semibold tracking-tight first:mt-0"
           : "mt-6 text-xl font-semibold tracking-tight first:mt-0"
-      return (
-        <Tag className={cls}>
-          <Children nodes={node.nodes} />
-        </Tag>
+      return React.createElement(
+        `h${level}`,
+        { className: cls },
+        <Children nodes={node.nodes} />
       )
     }
     case "BULLETED_LIST":

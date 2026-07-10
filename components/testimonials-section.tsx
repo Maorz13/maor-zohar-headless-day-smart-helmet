@@ -4,9 +4,10 @@ import * as React from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TESTIMONIALS_COLLECTION_ID, wix } from "@/lib/wix"
+import { TESTIMONIALS_COLLECTION_ID } from "@/lib/wix"
+import { fetchCollectionItems } from "@/lib/wix-data"
 
-type Testimonial = {
+export type Testimonial = {
   _id: string
   quote?: string
   name?: string
@@ -15,26 +16,31 @@ type Testimonial = {
   order?: number
 }
 
-export function TestimonialsSection() {
-  const [items, setItems] = React.useState<Testimonial[] | null>(null)
+export function TestimonialsSection({
+  initialItems,
+}: {
+  initialItems?: Testimonial[]
+}) {
+  const hadInitial = !!initialItems?.length
+  const [items, setItems] = React.useState<Testimonial[] | null>(
+    hadInitial ? (initialItems as Testimonial[]) : null
+  )
   const [error, setError] = React.useState(false)
 
   React.useEffect(() => {
     let cancelled = false
-    wix.items
-      .query(TESTIMONIALS_COLLECTION_ID)
-      .ascending("order")
-      .limit(8)
-      .find()
-      .then((res: { items: unknown[] }) => {
-        if (!cancelled) setItems(res.items as unknown as Testimonial[])
+    fetchCollectionItems<Testimonial>(TESTIMONIALS_COLLECTION_ID, 8)
+      .then((fetched) => {
+        if (!cancelled) setItems(fetched)
       })
       .catch(() => {
-        if (!cancelled) setError(true)
+        // Keep the baked data if we have it; only surface an error without it.
+        if (!cancelled && !hadInitial) setError(true)
       })
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (error) return null

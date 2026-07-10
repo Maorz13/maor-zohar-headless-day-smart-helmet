@@ -35,7 +35,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DATA_LAYERS_COLLECTION_ID, wix } from "@/lib/wix"
+import { DATA_LAYERS_COLLECTION_ID } from "@/lib/wix"
+import { fetchCollectionItems } from "@/lib/wix-data"
 
 export type DataLayer = {
   _id: string
@@ -68,26 +69,27 @@ function layerIcon(name?: string) {
   return match?.[1] ?? Layers
 }
 
-export function useDataLayers() {
-  const [layers, setLayers] = React.useState<DataLayer[] | null>(null)
+export function useDataLayers(initial?: DataLayer[]) {
+  const hadInitial = !!initial?.length
+  const [layers, setLayers] = React.useState<DataLayer[] | null>(
+    hadInitial ? (initial as DataLayer[]) : null
+  )
   const [error, setError] = React.useState(false)
 
   React.useEffect(() => {
     let cancelled = false
-    wix.items
-      .query(DATA_LAYERS_COLLECTION_ID)
-      .ascending("order")
-      .limit(50)
-      .find()
-      .then((res: { items: unknown[] }) => {
-        if (!cancelled) setLayers(res.items as unknown as DataLayer[])
+    fetchCollectionItems<DataLayer>(DATA_LAYERS_COLLECTION_ID)
+      .then((items) => {
+        if (!cancelled) setLayers(items)
       })
       .catch(() => {
-        if (!cancelled) setError(true)
+        // Keep the baked data if we have it; only surface an error without it.
+        if (!cancelled && !hadInitial) setError(true)
       })
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return { layers, error }
@@ -134,8 +136,12 @@ export function DataLayerGridSkeleton({ count = 6 }: { count?: number }) {
 }
 
 /** Searchable, filterable grid — the /layers page body. */
-export function DataLayersExplorer() {
-  const { layers, error } = useDataLayers()
+export function DataLayersExplorer({
+  initialLayers,
+}: {
+  initialLayers?: DataLayer[]
+} = {}) {
+  const { layers, error } = useDataLayers(initialLayers)
   const [query, setQuery] = React.useState("")
   const [availability, setAvailability] = React.useState<string>("all")
 
@@ -238,6 +244,38 @@ export function DataLayersPreview({ limit = 6 }: { limit?: number }) {
       {layers.slice(0, limit).map((l) => (
         <DataLayerCard key={l._id} layer={l} />
       ))}
+    </div>
+  )
+}
+
+/** All layers as a horizontal snap-scroll gallery (Apple-LP-style rail). */
+export function DataLayersCarousel({
+  initialLayers,
+}: {
+  initialLayers?: DataLayer[]
+} = {}) {
+  const { layers, error } = useDataLayers(initialLayers)
+
+  if (error) return null
+
+  return (
+    <div
+      className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4"
+      role="list"
+      aria-label="All data layers"
+    >
+      {layers === null
+        ? Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              className="h-56 w-72 shrink-0 snap-start rounded-xl"
+            />
+          ))
+        : layers.map((l) => (
+            <div key={l._id} role="listitem" className="w-72 shrink-0 snap-start">
+              <DataLayerCard layer={l} />
+            </div>
+          ))}
     </div>
   )
 }
